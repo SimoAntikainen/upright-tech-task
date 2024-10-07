@@ -54,9 +54,48 @@ def get_node(node_id: int, db: Session = Depends(get_db)):
     return node
 
 
-@router.post("/", response_model=NodeResponse)
+"""@router.post("/", response_model=NodeResponse)
 def create_node(node: NodeCreate, db: Session = Depends(get_db)):
     new_node = Node(name=node.name, type=node.type, parent_id=node.parent_id)
+    db.add(new_node)
+    db.commit()
+    db.refresh(new_node)
+    return new_node"""
+
+def get_effective_alignment_from_parent(parent_id: Optional[int], db: Session) -> Optional[Alignment]:
+    if not parent_id:
+        return None
+    
+    parent = db.query(Node).filter(Node.id == parent_id).first()
+    if not parent:
+        raise HTTPException(status_code=404, detail="Parent node not found")
+    
+    if parent.alignment is not None:
+        return parent.alignment
+    
+    # Recursively check the parent's parent for alignment
+    return get_effective_alignment_from_parent(parent.parent_id, db)
+
+
+@router.post("/", response_model=NodeResponse)
+def create_node(node: NodeCreate, db: Session = Depends(get_db)):
+    # Check if alignment is provided; if not, inherit it from the parent
+    alignment = node.alignment
+    if alignment is None and node.parent_id is not None:
+        alignment = get_effective_alignment_from_parent(node.parent_id, db)
+
+    # Set revenue to None if the node is a category
+    revenue = None if node.type == NodeType.category or node.type == NodeType.company  else node.revenue
+
+    # Create the new node with inherited or provided alignment
+    new_node = Node(
+        name=node.name,
+        type=node.type,
+        parent_id=node.parent_id,
+        alignment=alignment,
+        revenue=revenue
+    )
+
     db.add(new_node)
     db.commit()
     db.refresh(new_node)
@@ -69,9 +108,15 @@ def update_node(node_id: int, updated_node: NodeCreate, db: Session = Depends(ge
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
     
+    # Set revenue to None if the node is a category
+    revenue = None if node.type == NodeType.category or node.type == NodeType.company  else node.revenue
+    
     node.name = updated_node.name
     node.type = updated_node.type
     node.parent_id = updated_node.parent_id
+    node.alignment=updated_node.alignment,
+    node.revenue=revenue
+    
     db.commit()
     db.refresh(node)
     return node
