@@ -1,0 +1,33 @@
+version: '3.1'
+
+services:
+  db:
+    image: postgres
+    environment:
+      POSTGRES_USER: fastapi_user
+      POSTGRES_PASSWORD: yourpassword
+      POSTGRES_DB: fastapi_db
+    ports:
+      - "5432:5432"
+
+  web:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    volumes:
+      - ./backend:/app 
+      - ./backend/migrations:/app/migrations
+    working_dir: /app   
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql://fastapi_user:yourpassword@db/fastapi_db
+      PYTHONPATH: /app
+    command: >
+      bash -c "
+      python3 -m app.drop_tables &&
+      alembic upgrade head &&
+      python3 -m app.initial_data &&
+      uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
