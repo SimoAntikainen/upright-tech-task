@@ -344,7 +344,7 @@ class CompanyAlignmentDBResponse(BaseModel):
     alignment_score: float
 
 @router.get("/company/{company_id}/products/alignmentDatabaseAggregation", response_model=CompanyAlignmentDBResponse)
-def calculate_company_alignment_score_with_database_aggregation(company_id: int, db: Session = Depends(get_session_local)):
+def get_company_alignment_score_with_database_aggregation(company_id: int, db: Session = Depends(get_session_local)):
     # Step 1: Calculate total weighted score and total revenue using SQL aggregation
     result = db.query(
         func.sum(
