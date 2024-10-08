@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func, case
 from typing import List
 from app.models import Node, NodeType, Alignment
 from app.database import SessionLocal
@@ -303,7 +304,6 @@ def get_company_alignment_score(company_id: int, db: Session = Depends(get_db)):
         "products": products
     }
 
-# Fetch all products under a company with eager loading
 def get_all_products_from_company_optimized(company_id: int, db: Session) -> List[Node]:
 
     products = db.query(Node).filter(
@@ -317,7 +317,7 @@ def get_all_products_from_company_optimized(company_id: int, db: Session) -> Lis
     return products
 
 @router.get("/company/{company_id}/products/alignmentOptimized", response_model=CompanyAlignmentResponse)
-def get_company_alignment_score(company_id: int, db: Session = Depends(get_db)):
+def get_company_alignment_score_optimized(company_id: int, db: Session = Depends(get_db)):
     company = db.query(Node).filter(Node.id == company_id, Node.type == NodeType.company).first()
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
@@ -332,6 +332,52 @@ def get_company_alignment_score(company_id: int, db: Session = Depends(get_db)):
     return {
         "alignment_score": alignment_score,
         "products": products
+    }
+
+
+
+def get_session_local():
+    yield SessionLocal()
+
+
+class CompanyAlignmentDBResponse(BaseModel):
+    alignment_score: float
+
+@router.get("/company/{company_id}/products/alignmentDatabaseAggregation", response_model=CompanyAlignmentDBResponse)
+def calculate_company_alignment_score_with_database_aggregation(company_id: int, db: Session = Depends(get_session_local)):
+    # Step 1: Calculate total weighted score and total revenue using SQL aggregation
+    result = db.query(
+        func.sum(
+            case(
+                (Node.alignment == Alignment.strongly_aligned, 2),
+                (Node.alignment == Alignment.aligned, 1),
+                (Node.alignment == Alignment.misaligned, -1),
+                (Node.alignment == Alignment.strongly_misaligned, -2),
+                else_=0  # Default value if no condition matches
+            ) * Node.revenue
+        ).label('weighted_score'),
+        func.sum(Node.revenue).label('total_revenue')
+    ).filter(
+        Node.company_id == company_id,
+        Node.type == NodeType.product,
+        Node.revenue.isnot(None),
+        Node.alignment.isnot(None)
+    ).first()
+
+    print()
+
+    # Step 2: Get the weighted score and total revenue from the query result
+    weighted_score = result.weighted_score
+    total_revenue = result.total_revenue
+
+    if total_revenue is None or total_revenue == 0:
+        raise HTTPException(status_code=400, detail="No revenue data available for products")
+
+    # Step 3: Calculate the final alignment score
+    alignment_score = weighted_score / total_revenue if weighted_score else 0
+
+    return {
+        "alignment_score": alignment_score,
     }
 
 

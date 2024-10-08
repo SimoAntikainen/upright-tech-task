@@ -16,9 +16,13 @@ View OpenAPI docs at
 http://localhost:8000/docs
 
 
-Then run the following endpoint via docs
+Then run the following "alignment optimization" endpoints via docs
 
 http://localhost:8000/v1/nodes/company/1/products/alignment
+
+http://localhost:8000/v1/nodes/company/1/products/alignmentOptimized
+
+http://localhost:8000/v1/nodes/company/1/products/alignmentDatabaseAggregation
 
 or via curl
 
