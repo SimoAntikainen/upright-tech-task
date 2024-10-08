@@ -33,6 +33,11 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_nodes_id'), 'nodes', ['id'], unique=False)
+    op.create_index('idx_company_id', 'nodes', ['company_id'])
+    op.create_index('idx_revenue', 'nodes', ['revenue'])
+    op.create_index('idx_alignment', 'nodes', ['alignment'])
+
+
     op.create_table('users',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(), nullable=True),
@@ -51,6 +56,10 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_users_id'), table_name='users')
     op.drop_index(op.f('ix_users_email'), table_name='users')
     op.drop_table('users')
+    
     op.drop_index(op.f('ix_nodes_id'), table_name='nodes')
+    op.drop_index('idx_company_id', table_name='nodes')
+    op.drop_index('idx_revenue', table_name='nodes')
+    op.drop_index('idx_alignment', table_name='nodes')
     op.drop_table('nodes')
     # ### end Alembic commands ###
