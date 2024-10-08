@@ -1,10 +1,9 @@
 from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List
 from app.models import Node, NodeType, Alignment
 from app.database import SessionLocal
 from pydantic import BaseModel
-
 from typing import Optional
 
 
@@ -34,6 +33,7 @@ class NodeResponse(NodeBase):
     id: int
     parent_id: Optional[int] = None
     revenue: Optional[float] = None  # Revenue is only relevant for product nodes
+    company_id: Optional[int] = None
 
     class Config:
         orm_mode = True  # Enable ORM mode to work with SQLAlchemy models
@@ -77,7 +77,7 @@ def get_effective_alignment_from_parent(parent_id: Optional[int], db: Session) -
     return get_effective_alignment_from_parent(parent.parent_id, db)
 
 
-@router.post("/", response_model=NodeResponse)
+"""@router.post("/", response_model=NodeResponse)
 def create_node(node: NodeCreate, db: Session = Depends(get_db)):
     # Check if alignment is provided; if not, inherit it from the parent
     alignment = node.alignment
@@ -99,7 +99,55 @@ def create_node(node: NodeCreate, db: Session = Depends(get_db)):
     db.add(new_node)
     db.commit()
     db.refresh(new_node)
+    return new_node"""
+
+@router.post("/", response_model=NodeResponse)
+def create_node(node: NodeCreate, db: Session = Depends(get_db)):
+    # Check if alignment is provided; if not, inherit it from the parent
+    alignment = node.alignment
+    company_id = None
+
+    if node.parent_id is not None:
+        # Get the parent node to derive company_id and alignment if necessary
+        parent_node = db.query(Node).filter(Node.id == node.parent_id).first()
+        if not parent_node:
+            raise HTTPException(status_code=404, detail="Parent node not found")
+        
+        if parent_node.type == NodeType.product:
+            raise HTTPException(status_code=403, detail="Cannot set product as parent to product")
+        
+        if parent_node.type == NodeType.company and node.type == NodeType.company:
+            raise HTTPException(status_code=403, detail="Cannot set company as parent to company")
+        
+        # Inherit company_id from the parent if the node is not a company
+        if parent_node.type == NodeType.company:
+            company_id = parent_node.id  # The company ID is the parent ID if the parent is a company
+        else:
+            company_id = parent_node.company_id  # Otherwise, inherit the company ID from the parent
+
+
+        # Inherit alignment if it's not provided
+        if alignment is None:
+            alignment = get_effective_alignment_from_parent(node.parent_id, db)
+
+    # Set revenue to None if the node is a category or company
+    revenue = None if node.type == NodeType.category or node.type == NodeType.company else node.revenue
+
+    # Create the new node with inherited or provided alignment and company_id
+    new_node = Node(
+        name=node.name,
+        type=node.type,
+        parent_id=node.parent_id,
+        alignment=alignment,
+        revenue=revenue,
+        company_id=company_id 
+    )
+
+    db.add(new_node)
+    db.commit()
+    db.refresh(new_node)
     return new_node
+
 
 
 @router.put("/{node_id}", response_model=NodeResponse)
@@ -244,6 +292,37 @@ def get_company_alignment_score(company_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Company not found")
 
     products = get_all_products_from_company(company.id, db)
+
+    if not products:
+        raise HTTPException(status_code=404, detail="No products found for this company")
+
+    alignment_score = calculate_alignment_score(products)
+
+    return {
+        "alignment_score": alignment_score,
+        "products": products
+    }
+
+# Fetch all products under a company with eager loading
+def get_all_products_from_company_optimized(company_id: int, db: Session) -> List[Node]:
+
+    products = db.query(Node).filter(
+        Node.company_id == company_id,
+        Node.type == NodeType.product
+    ).all()
+
+    if not products:
+        raise HTTPException(status_code=404, detail="No products found for this company")
+
+    return products
+
+@router.get("/company/{company_id}/products/alignmentOptimized", response_model=CompanyAlignmentResponse)
+def get_company_alignment_score(company_id: int, db: Session = Depends(get_db)):
+    company = db.query(Node).filter(Node.id == company_id, Node.type == NodeType.company).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    products = get_all_products_from_company_optimized(company.id, db)
 
     if not products:
         raise HTTPException(status_code=404, detail="No products found for this company")

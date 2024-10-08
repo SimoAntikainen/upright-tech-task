@@ -32,10 +32,14 @@ class Node(Base):
     type = Column(Enum(NodeType), nullable=False)
 
     parent_id = Column(Integer, ForeignKey('nodes.id'), nullable=True)
-    children = relationship("Node", backref="parent", remote_side=[id])
+    children = relationship("Node", backref="parent", remote_side=[id],  foreign_keys=[parent_id])
 
     revenue = Column(Float, nullable=True)  # Only for product nodes (leaves)
     alignment = Column(Enum(Alignment), nullable=True)  # Optional for all nodes
+
+    # New column to associate categories and products with a company
+    company_id = Column(Integer, ForeignKey('nodes.id'), nullable=True)
+    #company_id = None
 
     def __repr__(self):
         return f"<Node(name={self.name}, type={self.type}, parent_id={self.parent_id})>"

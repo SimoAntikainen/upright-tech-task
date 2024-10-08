@@ -40,13 +40,12 @@ pip3 install -r requirements.txt
 migrations
 
 ```
+you have to build before creating a new migration
+
 docker-compose build
 docker-compose run web alembic init migrations
 docker-compose build
-docker-compose run web alembic revision --autogenerate -m "data migration"
-docker-compose build
 docker-compose run web alembic revision --autogenerate -m "tree structure"
-
 
 
 docker-compose exec db psql -U fastapi_user -d fastapi_db
