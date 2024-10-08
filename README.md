@@ -18,11 +18,14 @@ http://localhost:8000/docs
 
 Then run the following "alignment optimization" endpoints via docs
 
+unoptimized baseline
 http://localhost:8000/v1/nodes/company/1/products/alignment
 
+added company id to each product for effective querying
 http://localhost:8000/v1/nodes/company/1/products/alignmentOptimized
 
-http://localhost:8000/v1/nodes/company/1/products/alignmentDatabaseAggregation
+do the querying directly in the database and cache all results
+http://localhost:8000/v1/nodes/company/1/products/alignmentDatabaseAggregationAndCache
 
 or via curl
 

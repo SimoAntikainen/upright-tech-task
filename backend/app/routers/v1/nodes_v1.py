@@ -6,7 +6,11 @@ from app.models import Node, NodeType, Alignment
 from app.database import SessionLocal
 from pydantic import BaseModel
 from typing import Optional
+import redis
+import os
 
+
+redis_cache = redis.Redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"))
 
 router = APIRouter(
     prefix="/v1/nodes", 
@@ -342,9 +346,17 @@ def get_session_local():
 
 class CompanyAlignmentDBResponse(BaseModel):
     alignment_score: float
+    company_id: int
 
-@router.get("/company/{company_id}/products/alignmentDatabaseAggregation", response_model=CompanyAlignmentDBResponse)
-def get_company_alignment_score_with_database_aggregation(company_id: int, db: Session = Depends(get_session_local)):
+
+
+@router.get("/company/{company_id}/products/alignmentDatabaseAggregationAndCache", response_model=CompanyAlignmentDBResponse)
+def get_company_alignment_score_with_database_aggregation_and_cache(company_id: int, db: Session = Depends(get_session_local)):
+
+    cached_score = redis_cache.get(f"alignment_score:{company_id}")
+    if cached_score:
+        return {"company_id": company_id, "alignment_score": float(cached_score)}
+    
     # Step 1: Calculate total weighted score and total revenue using SQL aggregation
     result = db.query(
         func.sum(
@@ -376,7 +388,11 @@ def get_company_alignment_score_with_database_aggregation(company_id: int, db: S
     # Step 3: Calculate the final alignment score
     alignment_score = weighted_score / total_revenue if weighted_score else 0
 
+
+    redis_cache.set(f"alignment_score:{company_id}", alignment_score, ex=3600)
+
     return {
+        "company_id": company_id,
         "alignment_score": alignment_score,
     }
 
