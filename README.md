@@ -34,6 +34,10 @@ curl -X 'GET' \
   -H 'accept: application/json'
 
 
+![image](calculate_score.PNG)
+
+
+
 ## Dev time notes
 
 Dev time type hinting
