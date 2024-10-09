@@ -1,6 +1,10 @@
 # Installation and running the program
 
-The following code was run on Ubuntu 20.04 with on wsl 2 with docker
+The following code was run on Ubuntu 20.04 with on wsl 2 with docker.
+
+Logic wise all the relevant stuff is contained in the file path `backend/app/routers/v1/nodes_v1.py`
+where there existing RESTful endpoint for creating companies, 1-X categories under companies and products
+under categories. There are also 3 endpoints for calculating alignment which are described below.
 
 Run the project with
 
